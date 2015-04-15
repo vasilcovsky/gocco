@@ -196,7 +196,7 @@ var HTML = `
 <head>
     <title>{{ .Title }}</title>
   <meta http-equiv="content-type" content="text/html; charset=UTF-8">
-  <link rel="stylesheet" media="all" href="gocco.css" />
+  <link rel="stylesheet" media="all" href="http://nikhilm.github.io/gocco/gocco.css" />
 </head>
 <body>
   <div id="container">

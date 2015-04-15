@@ -26,18 +26,17 @@ package main
 import (
 	"bytes"
 	"container/list"
-	"flag"
+	"fmt"
 	"github.com/russross/blackfriday"
 	"io"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
-	"sync"
 	"text/template"
 )
 
@@ -94,6 +93,13 @@ type TemplateData struct {
 	Multiple bool
 }
 
+type GithubFile struct {
+	Path    string
+	Content []byte
+	ETag    string
+	Expires string
+}
+
 // a map of all the languages we know
 var languages map[string]*Language
 
@@ -114,15 +120,10 @@ const highlightEnd = "</pre></div>"
 // and putting it together.
 // The WaitGroup is used to signal we are done, so that the main
 // goroutine waits for all the sub goroutines
-func generateDocumentation(source string, wg *sync.WaitGroup) {
-	code, err := ioutil.ReadFile(source)
-	if err != nil {
-		log.Panic(err)
-	}
-	sections := parse(source, code)
-	highlight(source, sections)
-	generateHTML(source, sections)
-	wg.Done()
+func generateDocumentation(file *GithubFile) []byte {
+	sections := parse(file.Path, file.Content)
+	highlight(file.Path, sections)
+	return generateHTML(file.Path, sections)
 }
 
 // Parse splits code into `Section`s
@@ -219,7 +220,7 @@ func destination(source string) string {
 }
 
 // render the final HTML
-func generateHTML(source string, sections *list.List) {
+func generateHTML(source string, sections *list.List) []byte {
 	title := filepath.Base(source)
 	dest := destination(source)
 	// convert every `Section` into corresponding `TemplateSection`
@@ -233,7 +234,7 @@ func generateHTML(source string, sections *list.List) {
 	// run through the Go template
 	html := goccoTemplate(TemplateData{title, sectionsArray, sources, len(sources) > 1})
 	log.Println("gocco: ", source, " -> ", dest)
-	ioutil.WriteFile(dest, html, 0644)
+	return html
 }
 
 func goccoTemplate(data TemplateData) []byte {
@@ -285,25 +286,57 @@ func setup() {
 	}
 }
 
+func githubRawURL(blobURL string) string {
+	return "https://raw.githubusercontent.com/" + strings.Replace(blobURL, "/blob/", "/", 1)
+}
+
+func githubDownload(url string) (*GithubFile, error) {
+	client := &http.Client{}
+
+	res, err := client.Get(githubRawURL(url))
+
+	if err != nil {
+		log.Println(err)
+		return nil, err
+	}
+
+	if res.StatusCode != http.StatusOK {
+		return nil, http.ErrMissingFile
+	}
+
+	content, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		log.Println(err)
+		return nil, err
+	}
+
+	g := &GithubFile{
+		Path:    url,
+		Content: content,
+		ETag:    res.Header.Get("ETag"),
+		Expires: res.Header.Get("Expires"),
+	}
+
+	return g, nil
+}
+
+func goccoHandler(w http.ResponseWriter, r *http.Request) {
+	content, err := githubDownload(r.RequestURI)
+
+	if err != nil {
+		fmt.Fprint(w, err)
+		return
+	}
+
+	w.Header().Set("ETag", content.ETag)
+	w.Header().Set("Expires", content.Expires)
+	w.Write(generateDocumentation(content))
+}
+
 // let's Go!
 func main() {
 	setup()
 
-	flag.Parse()
-	sources = flag.Args()
-	sort.Strings(sources)
-
-	if flag.NArg() <= 0 {
-		return
-	}
-
-	ensureDirectory("docs")
-	ioutil.WriteFile("docs/gocco.css", bytes.NewBufferString(Css).Bytes(), 0755)
-
-	wg := new(sync.WaitGroup)
-	wg.Add(flag.NArg())
-	for _, arg := range flag.Args() {
-		go generateDocumentation(arg, wg)
-	}
-	wg.Wait()
+	http.HandleFunc("/", goccoHandler)
+	http.ListenAndServe("0.0.0.0:8080", nil)
 }
