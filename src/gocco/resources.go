@@ -1,4 +1,4 @@
-package main
+package gocco
 
 var Css = `
 /*--------------------- Layout and Typography ----------------------------*/
@@ -201,20 +201,6 @@ var HTML = `
 <body>
   <div id="container">
     <div id="background"></div>
-    {{ if .Multiple }}
-      <div id="jump_to">
-        Jump To &hellip;
-        <div id="jump_wrapper">
-          <div id="jump_page">
-              {{ range .Sources }}
-              <a class="source" href="{{ destination . | base }}">
-                  {{ base . }}
-              </a>
-              {{ end }}
-          </div>
-        </div>
-      </div>
-    {{ end }}
     <table cellpadding="0" cellspacing="0">
       <thead>
         <tr>

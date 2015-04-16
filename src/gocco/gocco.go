@@ -21,22 +21,16 @@
 // Then, with the go tool:
 //
 //     go get github.com/nikhilm/gocco
-package main
+package gocco
 
 import (
 	"bytes"
 	"container/list"
-	"fmt"
 	"github.com/russross/blackfriday"
 	"io"
-	"io/ioutil"
-	"log"
-	"net/http"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"strings"
 	"text/template"
 )
 
@@ -87,13 +81,9 @@ type TemplateData struct {
 	// A full list of source files so that a table-of-contents can
 	// be generated
 	Sources []string
-	// Only generate the TOC is there is more than one file
-	// Go's templating system does not allow expressions in the
-	// template, so calculate it outside
-	Multiple bool
 }
 
-type GithubFile struct {
+type SourceFile struct {
 	Path    string
 	Content []byte
 	ETag    string
@@ -114,17 +104,6 @@ const highlightStart = "<div class=\"highlight\"><pre>"
 const highlightEnd = "</pre></div>"
 
 // ## Main documentation generation functions
-
-// Generate the documentation for a single source file
-// by splitting it into sections, highlighting each section
-// and putting it together.
-// The WaitGroup is used to signal we are done, so that the main
-// goroutine waits for all the sub goroutines
-func generateDocumentation(file *GithubFile) []byte {
-	sections := parse(file.Path, file.Content)
-	highlight(file.Path, sections)
-	return generateHTML(file.Path, sections)
-}
 
 // Parse splits code into `Section`s
 func parse(source string, code []byte) *list.List {
@@ -213,16 +192,9 @@ func highlight(source string, sections *list.List) {
 	}
 }
 
-// compute the output location (in `docs/`) for the file
-func destination(source string) string {
-	base := filepath.Base(source)
-	return "docs/" + base[0:strings.LastIndex(base, filepath.Ext(base))] + ".html"
-}
-
 // render the final HTML
 func generateHTML(source string, sections *list.List) []byte {
 	title := filepath.Base(source)
-	dest := destination(source)
 	// convert every `Section` into corresponding `TemplateSection`
 	sectionsArray := make([]*TemplateSection, sections.Len())
 	for e, i := sections.Front(), 0; e != nil; e, i = e.Next(), i+1 {
@@ -232,8 +204,7 @@ func generateHTML(source string, sections *list.List) []byte {
 		sectionsArray[i] = &TemplateSection{docsBuf.String(), codeBuf.String(), i + 1}
 	}
 	// run through the Go template
-	html := goccoTemplate(TemplateData{title, sectionsArray, sources, len(sources) > 1})
-	log.Println("gocco: ", source, " -> ", dest)
+	html := goccoTemplate(TemplateData{title, sectionsArray, sources})
 	return html
 }
 
@@ -243,8 +214,7 @@ func goccoTemplate(data TemplateData) []byte {
 	t, err := template.New("gocco").Funcs(
 		// introduce the two functions that the template needs
 		template.FuncMap{
-			"base":        filepath.Base,
-			"destination": destination,
+			"base": filepath.Base,
 		}).Parse(HTML)
 	if err != nil {
 		panic(err)
@@ -262,20 +232,16 @@ func getLanguage(source string) *Language {
 	return languages[filepath.Ext(source)]
 }
 
-// make sure `docs/` exists
-func ensureDirectory(name string) {
-	os.MkdirAll(name, 0755)
-}
-
 func setupLanguages() {
 	languages = make(map[string]*Language)
 	// you should add more languages here
 	// only the first two fields should change, the rest should
 	// be `nil, "", nil`
 	languages[".go"] = &Language{"go", "//", nil, "", nil}
+	languages[".py"] = &Language{"python", "#", nil, "", nil}
 }
 
-func setup() {
+func init() {
 	setupLanguages()
 
 	// create the regular expressions based on the language comment symbol
@@ -286,57 +252,13 @@ func setup() {
 	}
 }
 
-func githubRawURL(blobURL string) string {
-	return "https://raw.githubusercontent.com/" + strings.Replace(blobURL, "/blob/", "/", 1)
-}
-
-func githubDownload(url string) (*GithubFile, error) {
-	client := &http.Client{}
-
-	res, err := client.Get(githubRawURL(url))
-
-	if err != nil {
-		log.Println(err)
-		return nil, err
-	}
-
-	if res.StatusCode != http.StatusOK {
-		return nil, http.ErrMissingFile
-	}
-
-	content, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		log.Println(err)
-		return nil, err
-	}
-
-	g := &GithubFile{
-		Path:    url,
-		Content: content,
-		ETag:    res.Header.Get("ETag"),
-		Expires: res.Header.Get("Expires"),
-	}
-
-	return g, nil
-}
-
-func goccoHandler(w http.ResponseWriter, r *http.Request) {
-	content, err := githubDownload(r.RequestURI)
-
-	if err != nil {
-		fmt.Fprint(w, err)
-		return
-	}
-
-	w.Header().Set("ETag", content.ETag)
-	w.Header().Set("Expires", content.Expires)
-	w.Write(generateDocumentation(content))
-}
-
-// let's Go!
-func main() {
-	setup()
-
-	http.HandleFunc("/", goccoHandler)
-	http.ListenAndServe("0.0.0.0:8080", nil)
+// Generate the documentation for a single source file
+// by splitting it into sections, highlighting each section
+// and putting it together.
+// The WaitGroup is used to signal we are done, so that the main
+// goroutine waits for all the sub goroutines
+func GenerateDocumentation(file *SourceFile) []byte {
+	sections := parse(file.Path, file.Content)
+	highlight(file.Path, sections)
+	return generateHTML(file.Path, sections)
 }
