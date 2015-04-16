@@ -1,0 +1,9 @@
+---
+
+app_name: gocco
+
+app_local: /Users/vasilcovsky/projects/gocco/package/gocco
+
+app_user: appusr
+app_group: appusr
+app_path: /app

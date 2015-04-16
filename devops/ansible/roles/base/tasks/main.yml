@@ -1,0 +1,19 @@
+---
+
+- name: Update apt cache
+  apt: update_cache=yes
+
+
+- name: Ensure bash, git, supervisor are the latest versions
+  apt: name={{ item }} update_cache=no state=latest
+  with_items:
+      - bash
+      - python-pip
+      - supervisor
+  tags: packages
+
+- name: Pygments
+  pip: name=Pygments state=present
+  tags: packages
+
+

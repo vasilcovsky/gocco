@@ -1,0 +1,13 @@
+---
+
+- name: Provision {{app_name}} server
+  hosts: webserver
+  sudo: yes
+  vars_files:
+    - env_vars/base.yml
+  roles:
+    - base
+    - nginx
+    - user
+    - app
+

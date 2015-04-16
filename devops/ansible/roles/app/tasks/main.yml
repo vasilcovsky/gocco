@@ -1,0 +1,25 @@
+---
+
+- name: Create app directory
+  file: path={{ app_path }}
+        state=directory
+        owner={{ app_user}}
+        group={{ app_group }}
+
+- name: Copy application
+  copy: src={{app_local}}
+        dest={{ app_path }}
+        owner={{ app_user }}
+        group={{ app_group }}
+
+- name: Make app executable
+  file: path={{ app_path }}/{{ app_name}} mode=a+x state=file
+
+- name: Setup supervisor
+  template: src=supervisor.conf dest=/etc/supervisor/conf.d/{{app_name}}.conf
+
+- name: Re-read the Supervisor config files
+  command: supervisorctl reread
+
+- name: Update Supervisor to add the app in the process group
+  command: supervisorctl update
