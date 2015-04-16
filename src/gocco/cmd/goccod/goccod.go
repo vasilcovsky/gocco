@@ -51,6 +51,11 @@ func goccoHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if r.Header.Get("If-None-Match") == content.ETag {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+
 	w.Header().Set("ETag", content.ETag)
 	w.Header().Set("Expires", content.Expires)
 	w.Write(gocco.GenerateDocumentation(content))

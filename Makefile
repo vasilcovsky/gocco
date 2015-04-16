@@ -1,8 +1,14 @@
-GO ?= go
-GOPATH := $(CURDIR)/_vendor:$(CURDIR)/
+GOCMD=go
+GOBUILD=$(GOCMD) build
+GOCLEAN=$(GOCMD) clean
+GOINSTALL=$(GOCMD) install
+GOTEST=$(GOCMD) test
+GODEP=$(GOTEST) -i
+
+GOPATH:=$(CURDIR)/_vendor:$(CURDIR)/
 
 APPNAME = gocco
-DISTDIR = package
+DISTDIR = dist
 
 all: dist
 

@@ -1,19 +1,4 @@
-// **Gocco** is a Go port of [Docco](http://jashkenas.github.com/docco/): the
-// original quick-and-dirty, hundred-line-long, literate-programming-style
-// documentation generator. It produces HTML that displays your comments
-// alongside your code. Comments are passed through
-// [Markdown](http://daringfireball.net/projects/markdown/syntax), and code is
-// passed through [Pygments](http://pygments.org/) syntax highlighting.  This
-// page is the result of running Gocco against its own source file.
-//
-// If you install Gocco, you can run it from the command-line:
-//
-// gocco *.go
-//
-// ...will generate an HTML documentation page for each of the named source
-// files, with a menu linking to the other pages, saving it into a `docs`
-// folder.
-//
+// Insiped by http://github.com/nikhilm/gocco
 // The [source for Gocco](http://github.com/nikhilm/gocco) is available on
 // GitHub, and released under the MIT license.
 //
@@ -78,9 +63,6 @@ type TemplateData struct {
 	Title string
 	// The Sections making up this file
 	Sections []*TemplateSection
-	// A full list of source files so that a table-of-contents can
-	// be generated
-	Sources []string
 }
 
 type SourceFile struct {
@@ -92,12 +74,6 @@ type SourceFile struct {
 
 // a map of all the languages we know
 var languages map[string]*Language
-
-// paths of all the source files, sorted
-var sources []string
-
-// absolute path to get resources
-var packageLocation string
 
 // Wrap the code in these
 const highlightStart = "<div class=\"highlight\"><pre>"
@@ -204,7 +180,7 @@ func generateHTML(source string, sections *list.List) []byte {
 		sectionsArray[i] = &TemplateSection{docsBuf.String(), codeBuf.String(), i + 1}
 	}
 	// run through the Go template
-	html := goccoTemplate(TemplateData{title, sectionsArray, sources})
+	html := goccoTemplate(TemplateData{title, sectionsArray})
 	return html
 }
 
